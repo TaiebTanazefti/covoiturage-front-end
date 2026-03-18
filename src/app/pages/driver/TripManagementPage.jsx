@@ -155,10 +155,24 @@ export function TripManagementPage() {
         )}
 
         {trip.statut === "ACTIF" && (
-          <Button variant="destructive" onClick={handleCancelTrip} disabled={submitting}>
-            Annuler ce trajet
-          </Button>
-        )}
+  <>
+    <Button
+      variant="destructive"
+      onClick={handleCancelTrip}
+      disabled={submitting}
+    >
+      Annuler ce trajet
+    </Button>
+
+    <Button
+      type="button"
+      className="bg-blue-600 text-white mt-4"
+      onClick={() => navigate(`/app/conducteur/modifier/${trip.id}`)}
+    >
+      Modifier le trajet
+    </Button>
+  </>
+)}
       </div>
     </div>
   );

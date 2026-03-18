@@ -74,6 +74,7 @@ export const router = createBrowserRouter([
       { path: "conducteur/mes-trajets", Component: MyTripsPage },
       { path: "conducteur/creer", Component: CreateTripPage },
       { path: "conducteur/trajet/:id", Component: TripManagementPage },
+      { path: "conducteur/modifier/:id", Component: CreateTripPage },
       { path: "notifications", Component: NotificationsPage },
       { path: "profil", Component: ProfilePage },
       { path: "parametres", Component: SettingsPage },
