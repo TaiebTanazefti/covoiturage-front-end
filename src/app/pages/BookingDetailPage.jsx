@@ -23,8 +23,9 @@ export function BookingDetailPage() {
     api.getReservation(id).then(setData).catch(() => setData(null)).finally(() => setLoading(false));
   }, [id]);
 
-  const isDriver = data?.trajet && user?.id === data.trajet.utilisateur_id;
-  const isPassenger = data && user?.id === data.utilisateur_id;
+  // ✅ Fix: Number() pour éviter string vs number
+  const isDriver = data?.trajet && Number(user?.id) === Number(data.trajet.utilisateur_id);
+  const isPassenger = data && Number(user?.id) === Number(data.utilisateur_id);
   const canAcceptRefuse = isDriver && data?.statut === "EN_ATTENTE";
   const canCancel = isPassenger && (data?.statut === "EN_ATTENTE" || data?.statut === "ACCEPTEE");
   const tripDate = data?.trajet?.dateEtHeure ? new Date(data.trajet.dateEtHeure) : null;

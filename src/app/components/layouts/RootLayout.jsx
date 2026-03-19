@@ -1,10 +1,50 @@
 import { Outlet, Link, useLocation } from "react-router";
 import { Home, Calendar, Bell, User, Car, ShieldCheck } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
+import { useState, useEffect } from "react";
+import * as api from "../../lib/api";
 
 export function RootLayout() {
   const location = useLocation();
   const { user } = useAuth();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const role = user.role;
+
+    if (role === "CONDUCTEUR") {
+      // ✅ Conducteur : compter les demandes EN_ATTENTE sur ses trajets
+      api.getMesTrajets()
+        .then(async (trajets) => {
+          const list = Array.isArray(trajets) ? trajets.filter(t => t.statut === "ACTIF") : [];
+          let total = 0;
+          await Promise.all(list.map(async (t) => {
+            try {
+              const reservations = await api.getTrajetReservations(t.id);
+              const pending = Array.isArray(reservations)
+                ? reservations.filter(r => r.statut === "EN_ATTENTE").length
+                : 0;
+              total += pending;
+            } catch {
+              // ignore
+            }
+          }));
+          setUnreadCount(total);
+        })
+        .catch(() => setUnreadCount(0));
+    } else {
+      // ✅ Passager : compter les réservations ACCEPTEE ou REFUSEE
+      api.getMesReservations()
+        .then((data) => {
+          const list = Array.isArray(data) ? data : [];
+          const count = list.filter((r) => r.statut === "ACCEPTEE" || r.statut === "REFUSEE").length;
+          setUnreadCount(count);
+        })
+        .catch(() => setUnreadCount(0));
+    }
+  }, [location.pathname, user]);
 
   const isActive = (path) => {
     return location.pathname === path || location.pathname.startsWith(path);
@@ -26,7 +66,7 @@ export function RootLayout() {
               <p className="text-xs text-muted-foreground">Collège La Cité</p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-3">
             {user?.role === "ADMIN" && (
               <Link
@@ -39,9 +79,11 @@ export function RootLayout() {
             )}
             <Link to="/app/notifications" className="relative">
               <Bell className="w-6 h-6 text-foreground" />
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-destructive rounded-full text-[10px] text-white flex items-center justify-center">
-                3
-              </span>
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-destructive rounded-full text-[10px] text-white flex items-center justify-center">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
             </Link>
           </div>
         </div>
