@@ -1,17 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Textarea } from "../../components/ui/textarea";
 import { Card } from "../../components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../../components/ui/select";
 import {
   MapPin,
   Calendar,
@@ -29,10 +22,159 @@ import {
   Shield,
   AlertCircle,
   CheckCircle,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import * as api from "../../lib/api";
 
+// ============================================================
+// Composant AddressAutocomplete
+// Utilise l'API Nominatim (OpenStreetMap) - gratuit, sans clé
+// ============================================================
+/**
+ * @component AddressAutocomplete
+ * @description Champ d'adresse avec suggestions automatiques comme Google Maps.
+ *              Utilise l'API Nominatim (OpenStreetMap), gratuit et sans clé API.
+ * @param {string} id - Identifiant HTML du champ
+ * @param {string} label - Étiquette affichée au-dessus du champ
+ * @param {string} placeholder - Texte indicatif dans le champ
+ * @param {string} value - Valeur actuelle du champ
+ * @param {function} onChange - Fonction appelée lors d'un changement de valeur
+ * @param {string} iconColor - Classe CSS de couleur pour l'icône MapPin
+ * @param {string} error - Message d'erreur à afficher sous le champ
+ * @param {boolean} disabled - Si true, désactive le champ
+ */
+function AddressAutocomplete({
+  id,
+  label,
+  placeholder,
+  value,
+  onChange,
+  iconColor = "text-primary",
+  error,
+  disabled = false,
+}) {
+  const [inputValue, setInputValue] = useState(value || "");
+  const [suggestions, setSuggestions] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const debounceRef = useRef(null);
+  const containerRef = useRef(null);
+
+  // Synchronise avec la valeur externe (mode édition)
+  useEffect(() => {
+    setInputValue(value || "");
+  }, [value]);
+
+  // Ferme les suggestions si clic en dehors
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  /**
+   * @function fetchSuggestions
+   * @description Interroge l'API Nominatim pour obtenir des suggestions d'adresses canadiennes
+   * @param {string} query - Texte saisi par l'utilisateur
+   */
+  const fetchSuggestions = async (query) => {
+    if (query.length < 3) {
+      setSuggestions([]);
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
+        query
+      )}&format=json&addressdetails=1&limit=5&countrycodes=ca`;
+      const res = await fetch(url, {
+        headers: { "Accept-Language": "fr" },
+      });
+      const data = await res.json();
+      setSuggestions(data);
+      setShowSuggestions(true);
+    } catch (err) {
+      console.error("Erreur Nominatim:", err);
+      setSuggestions([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const val = e.target.value;
+    setInputValue(val);
+    onChange(val);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchSuggestions(val), 350);
+  };
+
+  const handleSelect = (suggestion) => {
+    const address = suggestion.display_name;
+    setInputValue(address);
+    onChange(address);
+    setSuggestions([]);
+    setShowSuggestions(false);
+  };
+
+  return (
+    <div className="space-y-2" ref={containerRef}>
+      {label && (
+        <Label htmlFor={id}>
+          {label} <span className="text-destructive">*</span>
+        </Label>
+      )}
+      <div className="relative">
+        {isLoading ? (
+          <Loader2 className="absolute left-3 top-3 w-5 h-5 animate-spin text-muted-foreground" />
+        ) : (
+          <MapPin className={`absolute left-3 top-3 w-5 h-5 ${iconColor}`} />
+        )}
+        <Input
+          id={id}
+          type="text"
+          placeholder={placeholder}
+          value={inputValue}
+          onChange={handleInputChange}
+          onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+          className={`pl-10 ${error ? "border-destructive" : ""}`}
+          disabled={disabled}
+          autoComplete="off"
+        />
+        {showSuggestions && suggestions.length > 0 && (
+          <ul className="absolute z-50 w-full mt-1 bg-white border border-border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+            {suggestions.map((s) => (
+              <li
+                key={s.place_id}
+                onMouseDown={() => handleSelect(s)}
+                className="flex items-start gap-2 px-4 py-3 hover:bg-accent cursor-pointer border-b border-border last:border-0"
+              >
+                <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                <span className="text-sm text-foreground leading-snug">
+                  {s.display_name}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      {error && (
+        <p className="text-sm text-destructive flex items-center gap-1">
+          <AlertCircle className="w-4 h-4" /> {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// Options d'équipements disponibles dans le trajet
+// ============================================================
 const amenityOptions = [
   { id: "wifi", label: "WiFi", icon: Wifi },
   { id: "music", label: "Musique", icon: Music },
@@ -42,15 +184,23 @@ const amenityOptions = [
   { id: "electric", label: "Voiture électrique", icon: Zap },
 ];
 
+// ============================================================
+// Page principale : Créer ou Modifier un trajet
+// ============================================================
+/**
+ * @component CreateTripPage
+ * @description Page de création et de modification d'un trajet de covoiturage.
+ *              En mode création : affiche un formulaire vide.
+ *              En mode modification : charge les données existantes via l'API.
+ */
 export function CreateTripPage() {
   const navigate = useNavigate();
-  const { id } = useParams(); // ✅ récupère l'id si on est en mode modifier
-  const isEditMode = Boolean(id);  // ✅ true = modifier, false = créer
+  const { id } = useParams();
+  const isEditMode = Boolean(id);
 
   const [isLoading, setIsLoading] = useState(false);
-  const [loadingTrip, setLoadingTrip] = useState(isEditMode); // charge les données existantes
+  const [loadingTrip, setLoadingTrip] = useState(isEditMode);
 
-  // Form fields
   const [departure, setDeparture] = useState("");
   const [arrival, setArrival] = useState("");
   const [date, setDate] = useState("");
@@ -58,25 +208,20 @@ export function CreateTripPage() {
   const [seats, setSeats] = useState(1);
   const [notes, setNotes] = useState("");
   const [selectedAmenities, setSelectedAmenities] = useState([]);
-
-  // Validation errors
   const [errors, setErrors] = useState({});
 
-  // ✅ Si mode modifier : charger les données du trajet existant
+  // Charge les données du trajet existant en mode modification
   useEffect(() => {
     if (!isEditMode) return;
-
     api.getTrajet(id)
       .then((trip) => {
         setDeparture(trip.pointDeDepart || "");
         setArrival(trip.pointDarrivee || "");
-
         if (trip.dateEtHeure) {
           const dt = new Date(trip.dateEtHeure);
           setDate(dt.toISOString().split("T")[0]);
           setTime(dt.toTimeString().slice(0, 5));
         }
-
         setSeats(trip.nombreDePlacesDisponibles || 1);
         setNotes(trip.notes || "");
         setSelectedAmenities(trip.amenities || []);
@@ -88,21 +233,23 @@ export function CreateTripPage() {
       .finally(() => setLoadingTrip(false));
   }, [id]);
 
+  /**
+   * @function validateForm
+   * @description Valide les champs obligatoires du formulaire
+   * @returns {boolean} true si le formulaire est valide
+   */
   const validateForm = () => {
     const newErrors = {};
-
     if (!departure.trim()) newErrors.departure = "Le point de départ est requis";
     if (!arrival.trim()) newErrors.arrival = "La destination est requise";
     if (!date) newErrors.date = "La date est requise";
     if (!time) newErrors.time = "L'heure est requise";
-
     if (date && time) {
       const selectedDateTime = new Date(`${date}T${time}`);
       if (selectedDateTime < new Date()) {
         newErrors.date = "La date et l'heure doivent être dans le futur";
       }
     }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -115,19 +262,22 @@ export function CreateTripPage() {
   const toggleAmenity = (amenityId) => {
     setSelectedAmenities((prev) =>
       prev.includes(amenityId)
-        ? prev.filter((id) => id !== amenityId)
+        ? prev.filter((a) => a !== amenityId)
         : [...prev, amenityId]
     );
   };
 
+  /**
+   * @function handleSubmit
+   * @description Soumet le formulaire pour créer ou modifier un trajet
+   * @param {Event} e - Événement de soumission du formulaire
+   */
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     if (!validateForm()) {
       toast.error("Veuillez corriger les erreurs du formulaire");
       return;
     }
-
     setIsLoading(true);
     const dateEtHeure = `${date}T${time}`;
     const payload = {
@@ -136,15 +286,12 @@ export function CreateTripPage() {
       dateEtHeure,
       nombreDePlacesDisponibles: seats,
     };
-
     try {
       if (isEditMode) {
-        // ✅ Mode modifier : appelle updateTrajet avec l'id
         await api.updateTrajet(id, payload);
         toast.success("Trajet modifié avec succès !");
         navigate(`/app/conducteur/trajet/${id}`);
       } else {
-        // ✅ Mode créer : appelle createTrajet comme avant
         await api.createTrajet(payload);
         toast.success("Trajet publié avec succès !");
         navigate("/app/conducteur/mes-trajets");
@@ -159,7 +306,6 @@ export function CreateTripPage() {
   const handleCancel = () => navigate(-1);
   const isFormValid = departure && arrival && date && time;
 
-  // ✅ Pendant le chargement des données en mode modifier
   if (loadingTrip) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -171,7 +317,7 @@ export function CreateTripPage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-6 pb-24">
-        {/* Header */}
+        {/* En-tête */}
         <div className="flex items-center gap-4 mb-6">
           <button
             onClick={handleCancel}
@@ -181,7 +327,6 @@ export function CreateTripPage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            {/* ✅ Titre dynamique selon le mode */}
             <h1 className="text-2xl font-bold text-foreground">
               {isEditMode ? "Modifier le trajet" : "Créer un trajet"}
             </h1>
@@ -193,7 +338,7 @@ export function CreateTripPage() {
           </div>
         </div>
 
-        {/* Certification notice */}
+        {/* Avis de certification */}
         <Card className="p-4 mb-6 bg-success/10 border-success/30">
           <div className="flex gap-3">
             <Shield className="w-5 h-5 text-success flex-shrink-0 mt-0.5" />
@@ -207,66 +352,42 @@ export function CreateTripPage() {
         </Card>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Section 1: Informations du trajet */}
+          {/* Section 1 : Informations du trajet */}
           <Card className="p-6">
             <h2 className="text-lg font-semibold text-foreground mb-4">
               Informations du trajet
             </h2>
-
             <div className="space-y-5">
-              {/* Départ */}
-              <div className="space-y-2">
-                <Label htmlFor="departure">
-                  Point de départ <span className="text-destructive">*</span>
-                </Label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-3 w-5 h-5 text-primary" />
-                  <Input
-                    id="departure"
-                    type="text"
-                    placeholder="Ex: Collège La Cité, 801 Aviation Pkwy"
-                    value={departure}
-                    onChange={(e) => {
-                      setDeparture(e.target.value);
-                      if (errors.departure) setErrors((prev) => ({ ...prev, departure: "" }));
-                    }}
-                    className={`pl-10 ${errors.departure ? "border-destructive" : ""}`}
-                    disabled={isLoading}
-                  />
-                </div>
-                {errors.departure && (
-                  <p className="text-sm text-destructive flex items-center gap-1">
-                    <AlertCircle className="w-4 h-4" /> {errors.departure}
-                  </p>
-                )}
-              </div>
 
-              {/* Arrivée */}
-              <div className="space-y-2">
-                <Label htmlFor="arrival">
-                  Destination <span className="text-destructive">*</span>
-                </Label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-3 w-5 h-5 text-destructive" />
-                  <Input
-                    id="arrival"
-                    type="text"
-                    placeholder="Ex: Centre-ville Ottawa, Rideau Centre"
-                    value={arrival}
-                    onChange={(e) => {
-                      setArrival(e.target.value);
-                      if (errors.arrival) setErrors((prev) => ({ ...prev, arrival: "" }));
-                    }}
-                    className={`pl-10 ${errors.arrival ? "border-destructive" : ""}`}
-                    disabled={isLoading}
-                  />
-                </div>
-                {errors.arrival && (
-                  <p className="text-sm text-destructive flex items-center gap-1">
-                    <AlertCircle className="w-4 h-4" /> {errors.arrival}
-                  </p>
-                )}
-              </div>
+              {/* Point de départ avec autocomplete */}
+              <AddressAutocomplete
+                id="departure"
+                label="Point de départ"
+                placeholder="Ex: Collège La Cité, 801 Aviation Pkwy"
+                value={departure}
+                onChange={(val) => {
+                  setDeparture(val);
+                  if (errors.departure) setErrors((prev) => ({ ...prev, departure: "" }));
+                }}
+                iconColor="text-primary"
+                error={errors.departure}
+                disabled={isLoading}
+              />
+
+              {/* Destination avec autocomplete */}
+              <AddressAutocomplete
+                id="arrival"
+                label="Destination"
+                placeholder="Ex: Centre-ville Ottawa, Rideau Centre"
+                value={arrival}
+                onChange={(val) => {
+                  setArrival(val);
+                  if (errors.arrival) setErrors((prev) => ({ ...prev, arrival: "" }));
+                }}
+                iconColor="text-destructive"
+                error={errors.arrival}
+                disabled={isLoading}
+              />
 
               {/* Date et Heure */}
               <div className="grid grid-cols-2 gap-4">
@@ -295,7 +416,6 @@ export function CreateTripPage() {
                     </p>
                   )}
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="time">
                     Heure <span className="text-destructive">*</span>
@@ -374,7 +494,7 @@ export function CreateTripPage() {
             </div>
           </Card>
 
-          {/* Section 2: Options */}
+          {/* Section 2 : Options */}
           <Card className="p-6">
             <h2 className="text-lg font-semibold text-foreground mb-2">Options et préférences</h2>
             <p className="text-sm text-muted-foreground mb-4">Indiquez les équipements disponibles</p>
@@ -403,7 +523,7 @@ export function CreateTripPage() {
             </div>
           </Card>
 
-          {/* Section 3: Règles */}
+          {/* Section 3 : Règles */}
           <Card className="p-6 bg-warning/10 border-warning/30">
             <div className="flex gap-3">
               <AlertCircle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
@@ -419,7 +539,7 @@ export function CreateTripPage() {
             </div>
           </Card>
 
-          {/* Actions */}
+          {/* Boutons d'action */}
           <div className="fixed bottom-20 left-0 right-0 bg-white border-t border-border p-4 shadow-lg">
             <div className="container mx-auto space-y-3">
               <Button type="submit" className="w-full h-12" disabled={!isFormValid || isLoading}>
