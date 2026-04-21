@@ -35,6 +35,19 @@ export function MyTripsPage() {
 
   const active = trips.filter((t) => t.statut === "ACTIF");
   const cancelled = trips.filter((t) => t.statut === "ANNULE");
+  const terminated = trips.filter((t) => t.statut === "TERMINE");
+
+  const handleTerminer = async (e, tripId) => {
+    e.stopPropagation();
+    if (!window.confirm("Confirmer la fin de ce trajet ?")) return;
+    try {
+      await api.terminerTrajet(tripId);
+      const data = await api.getMesTrajets();
+      setTrips(Array.isArray(data) ? data : []);
+    } catch (err) {
+      alert("Erreur: " + err.message);
+    }
+  };
 
   const renderTripCard = (trip) => {
     const dt = trip.dateEtHeure ? new Date(trip.dateEtHeure) : null;
@@ -55,22 +68,37 @@ export function MyTripsPage() {
         {/* 🔥 HEADER AVEC BOUTON MODIFIER */}
         <div className="flex items-start justify-between mb-3">
           <Badge
-            className={trip.statut === "ACTIF" ? "bg-success" : "bg-muted"}
+            className={
+              trip.statut === "ACTIF"
+                ? "bg-success"
+                : trip.statut === "TERMINE"
+                ? "bg-blue-600"
+                : "bg-muted"
+            }
           >
-            {trip.statut === "ACTIF" ? "Actif" : "Annulé"}
+            {trip.statut === "ACTIF" ? "Actif" : trip.statut === "TERMINE" ? "Terminé" : "Annulé"}
           </Badge>
 
           {trip.statut === "ACTIF" && (
-            <button
-              type="button"
-              className="bg-green-600 text-white px-3 py-1 rounded-md text-sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate(`/app/conducteur/modifier/${trip.id}`);
-              }}
-            >
-              Modifier
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="bg-green-600 text-white px-3 py-1 rounded-md text-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/app/conducteur/modifier/${trip.id}`);
+                }}
+              >
+                Modifier
+              </button>
+              <button
+                type="button"
+                className="bg-blue-600 text-white px-3 py-1 rounded-md text-sm"
+                onClick={(e) => handleTerminer(e, trip.id)}
+              >
+                Terminer
+              </button>
+            </div>
           )}
         </div>
 
@@ -128,10 +156,11 @@ export function MyTripsPage() {
         </div>
 
         <Tabs defaultValue="active">
-          <TabsList className="w-full grid grid-cols-2">
+          <TabsList className="w-full grid grid-cols-3">
             <TabsTrigger value="active">
               Actifs ({active.length})
             </TabsTrigger>
+            <TabsTrigger value="terminated">Terminés ({terminated.length})</TabsTrigger>
             <TabsTrigger value="cancelled">Annulés</TabsTrigger>
           </TabsList>
 
@@ -147,6 +176,17 @@ export function MyTripsPage() {
                 <Button onClick={() => navigate("/app/conducteur/creer")}>
                   Créer un trajet
                 </Button>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="terminated" className="space-y-4">
+            {terminated.length > 0 ? (
+              terminated.map(renderTripCard)
+            ) : (
+              <Card className="p-12 text-center">
+                <CheckCircle className="w-12 h-12 mx-auto mb-4" />
+                <p>Aucun trajet terminé</p>
               </Card>
             )}
           </TabsContent>

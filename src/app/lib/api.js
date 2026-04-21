@@ -110,6 +110,10 @@ export async function cancelTrajet(id) {
   return request(`/api/trajet/${id}/annuler`, { method: 'PATCH' });
 }
 
+export async function terminerTrajet(id) {
+  return request(`/api/trajet/${id}/terminer`, { method: 'PATCH' });
+}
+
 export async function deleteTrajet(id) {
   return request('/api/trajet', {
     method: 'DELETE',

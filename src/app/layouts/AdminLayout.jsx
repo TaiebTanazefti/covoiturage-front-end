@@ -22,56 +22,14 @@ import { useAuth } from "../contexts/AuthContext";
 import * as api from "../lib/api";
 
 const menuItems = [
-  {
-    id: "dashboard",
-    label: "Tableau de bord",
-    icon: LayoutDashboard,
-    path: "/admin/dashboard",
-  },
-  {
-    id: "validations",
-    label: "Validations identités",
-    icon: ShieldCheck,
-    path: "/admin/validations",
-    badgeKey: "validations",
-  },
-  {
-    id: "users",
-    label: "Utilisateurs",
-    icon: Users,
-    path: "/admin/utilisateurs",
-  },
-  {
-    id: "trips",
-    label: "Trajets",
-    icon: Car,
-    path: "/admin/trajets",
-  },
-  {
-    id: "bookings",
-    label: "Réservations",
-    icon: Calendar,
-    path: "/admin/reservations",
-  },
-  {
-    id: "moderation",
-    label: "Modération",
-    icon: AlertTriangle,
-    path: "/admin/moderation",
-    badge: 3,
-  },
-  {
-    id: "stats",
-    label: "Statistiques",
-    icon: BarChart3,
-    path: "/admin/statistiques",
-  },
-  {
-    id: "settings",
-    label: "Paramètres",
-    icon: Settings,
-    path: "/admin/parametres",
-  },
+  { id: "dashboard", label: "Tableau de bord", icon: LayoutDashboard, path: "/admin/dashboard" },
+  { id: "validations", label: "Validations identités", icon: ShieldCheck, path: "/admin/validations", badgeKey: "validations" },
+  { id: "users", label: "Utilisateurs", icon: Users, path: "/admin/utilisateurs" },
+  { id: "trips", label: "Trajets", icon: Car, path: "/admin/trajets" },
+  { id: "bookings", label: "Réservations", icon: Calendar, path: "/admin/reservations" },
+  { id: "moderation", label: "Modération", icon: AlertTriangle, path: "/admin/moderation", badge: 3 },
+  { id: "stats", label: "Statistiques", icon: BarChart3, path: "/admin/statistiques" },
+  { id: "settings", label: "Paramètres", icon: Settings, path: "/admin/parametres" },
 ];
 
 export function AdminLayout() {
@@ -81,6 +39,7 @@ export function AdminLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [pendingCount, setPendingCount] = useState(0);
+  const [showNotifs, setShowNotifs] = useState(false);
 
   useEffect(() => {
     api.getUtilisateurs().then((data) => {
@@ -89,9 +48,15 @@ export function AdminLayout() {
     }).catch(() => {});
   }, [location.pathname]);
 
-  const isActiveRoute = (path) => {
-    return location.pathname === path;
-  };
+  // Fermer notifs si on clique ailleurs
+  useEffect(() => {
+    if (!showNotifs) return;
+    const handler = () => setShowNotifs(false);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [showNotifs]);
+
+  const isActiveRoute = (path) => location.pathname === path;
 
   const handleLogout = async () => {
     await logout();
@@ -106,12 +71,7 @@ export function AdminLayout() {
   return (
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
-      <aside
-        className={`${
-          sidebarCollapsed ? "w-20" : "w-64"
-        } bg-white border-r border-border flex flex-col transition-all duration-300 fixed left-0 top-0 h-screen z-40`}
-      >
-        {/* Logo + App Name */}
+      <aside className={`${sidebarCollapsed ? "w-20" : "w-64"} bg-white border-r border-border flex flex-col transition-all duration-300 fixed left-0 top-0 h-screen z-40`}>
         <div className="h-16 border-b border-border flex items-center px-4 justify-between">
           {!sidebarCollapsed && (
             <div className="flex items-center gap-2">
@@ -119,9 +79,7 @@ export function AdminLayout() {
                 <Car className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="font-bold text-foreground text-sm">
-                  Covoiturage La Cité
-                </h1>
+                <h1 className="font-bold text-foreground text-sm">Covoiturage La Cité</h1>
                 <p className="text-xs text-muted-foreground">Admin</p>
               </div>
             </div>
@@ -130,28 +88,20 @@ export function AdminLayout() {
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             className="w-8 h-8 rounded-lg hover:bg-accent flex items-center justify-center"
           >
-            {sidebarCollapsed ? (
-              <ChevronRight className="w-5 h-5" />
-            ) : (
-              <ChevronLeft className="w-5 h-5" />
-            )}
+            {sidebarCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
           </button>
         </div>
 
-        {/* Menu Items */}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = isActiveRoute(item.path);
-
             return (
               <button
                 key={item.id}
                 onClick={() => navigate(item.path)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors relative ${
-                  isActive
-                    ? "bg-primary text-white"
-                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                  isActive ? "bg-primary text-white" : "text-muted-foreground hover:bg-accent hover:text-foreground"
                 }`}
               >
                 <Icon className="w-5 h-5 flex-shrink-0" />
@@ -159,10 +109,7 @@ export function AdminLayout() {
                   <>
                     <span className="text-sm font-medium">{item.label}</span>
                     {getBadge(item) > 0 && (
-                      <Badge
-                        variant={isActive ? "secondary" : "default"}
-                        className="ml-auto"
-                      >
+                      <Badge variant={isActive ? "secondary" : "default"} className="ml-auto">
                         {getBadge(item)}
                       </Badge>
                     )}
@@ -178,30 +125,22 @@ export function AdminLayout() {
           })}
         </nav>
 
-        {/* Logout */}
         <div className="p-3 border-t border-border">
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-destructive hover:bg-destructive/10 transition-colors"
           >
             <LogOut className="w-5 h-5 flex-shrink-0" />
-            {!sidebarCollapsed && (
-              <span className="text-sm font-medium">Déconnexion</span>
-            )}
+            {!sidebarCollapsed && <span className="text-sm font-medium">Déconnexion</span>}
           </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <div
-        className={`flex-1 flex flex-col ${
-          sidebarCollapsed ? "ml-20" : "ml-64"
-        } transition-all duration-300`}
-      >
+      <div className={`flex-1 flex flex-col ${sidebarCollapsed ? "ml-20" : "ml-64"} transition-all duration-300`}>
         {/* Topbar */}
         <header className="h-16 bg-white border-b border-border flex items-center px-6 sticky top-0 z-30">
           <div className="flex-1 flex items-center gap-4">
-            {/* Search */}
             <div className="relative max-w-md w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
@@ -209,6 +148,12 @@ export function AdminLayout() {
                 placeholder="Rechercher un utilisateur, trajet..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && searchQuery.trim()) {
+                    navigate(`/admin/utilisateurs?search=${encodeURIComponent(searchQuery.trim())}`);
+                    setSearchQuery("");
+                  }
+                }}
                 className="pl-10"
               />
             </div>
@@ -216,20 +161,43 @@ export function AdminLayout() {
 
           <div className="flex items-center gap-4">
             {/* Notifications */}
-            <button className="relative w-10 h-10 rounded-lg hover:bg-accent flex items-center justify-center">
-              <Bell className="w-5 h-5 text-muted-foreground" />
-              <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full"></div>
-            </button>
+            <div className="relative" onClick={(e) => e.stopPropagation()}>
+              <button
+                onClick={() => setShowNotifs(!showNotifs)}
+                className="relative w-10 h-10 rounded-lg hover:bg-accent flex items-center justify-center"
+              >
+                <Bell className="w-5 h-5 text-muted-foreground" />
+                {pendingCount > 0 && (
+                  <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full"></div>
+                )}
+              </button>
+
+              {showNotifs && (
+                <div className="absolute right-0 top-12 w-80 bg-white border border-border rounded-xl shadow-lg z-50">
+                  <div className="p-4 border-b border-border font-semibold text-sm">Notifications</div>
+                  {pendingCount > 0 ? (
+                    <div
+                      className="p-4 hover:bg-accent cursor-pointer text-sm flex gap-3 items-start"
+                      onClick={() => { navigate("/admin/validations"); setShowNotifs(false); }}
+                    >
+                      <ShieldCheck className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="font-medium">{pendingCount} validation{pendingCount > 1 ? "s" : ""} en attente</p>
+                        <p className="text-muted-foreground text-xs">Cliquez pour voir les identités à valider</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 text-sm text-muted-foreground text-center">Aucune notification</div>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* Admin Avatar */}
             <div className="flex items-center gap-3 pl-4 border-l border-border">
               <div className="text-right">
-                <p className="text-sm font-medium text-foreground">
-                  {user?.prenom} {user?.nom}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {user?.courriel}
-                </p>
+                <p className="text-sm font-medium text-foreground">{user?.prenom} {user?.nom}</p>
+                <p className="text-xs text-muted-foreground">{user?.courriel}</p>
               </div>
               <Avatar>
                 <AvatarImage src="" />
@@ -241,7 +209,6 @@ export function AdminLayout() {
           </div>
         </header>
 
-        {/* Page Content */}
         <main className="flex-1 overflow-auto">
           <Outlet />
         </main>

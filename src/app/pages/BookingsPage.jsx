@@ -67,7 +67,7 @@ export function BookingsPage() {
   const accepted = reservations.filter((r) => r.statut === "ACCEPTEE");
   const refused = reservations.filter((r) => r.statut === "REFUSEE");
   const cancelled = reservations.filter((r) => r.statut === "ANNULEE");
-  const history = []; // completed: would need trip date in past
+  const history = reservations.filter((r) => r.statut === "TERMINEE");
 
   const renderBookingCard = (booking) => {
     const trip = tripMap[booking.trajet_id];
